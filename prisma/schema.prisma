@@ -1,0 +1,341 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USUARIOS Y AUTENTICACIÓN
+// ============================================
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String
+  password      String
+  role          UserRole  @default(STAFF)
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  reservations  Reservation[]
+  payments      Payment[]
+  activityLogs  ActivityLog[]
+}
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  RECEPTIONIST
+  STAFF
+}
+
+// ============================================
+// INVENTARIO - HABITACIONES Y ESPACIOS
+// ============================================
+
+model RoomType {
+  id              String    @id @default(cuid())
+  name            String
+  description     String?
+  category        RoomCategory
+  capacity        Int
+  basePrice       Decimal   @db.Decimal(10, 2)
+  images          String[]
+  amenities       String[]
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  rooms           Room[]
+  priceRules      PriceRule[]
+}
+
+enum RoomCategory {
+  HABITACION
+  CAMPING
+  GLAMPING
+}
+
+model Room {
+  id              String    @id @default(cuid())
+  roomTypeId      String
+  roomType        RoomType  @relation(fields: [roomTypeId], references: [id])
+  number          String    @unique
+  floor           String?
+  status          RoomStatus @default(AVAILABLE)
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  reservations    ReservationRoom[]
+  maintenances    Maintenance[]
+}
+
+enum RoomStatus {
+  AVAILABLE
+  OCCUPIED
+  MAINTENANCE
+  CLEANING
+  BLOCKED
+}
+
+// ============================================
+// SISTEMA DE RESERVAS
+// ============================================
+
+model Reservation {
+  id                String          @id @default(cuid())
+  reservationNumber String          @unique
+  type              ReservationType
+  status            ReservationStatus @default(PENDING)
+  
+  // Fechas
+  checkIn           DateTime
+  checkOut          DateTime
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  
+  // Cliente
+  guestId           String
+  guest             Guest           @relation(fields: [guestId], references: [id])
+  
+  // Información adicional
+  adults            Int
+  children          Int             @default(0)
+  specialRequests   String?
+  notes             String?
+  
+  // Financiero
+  totalAmount       Decimal         @db.Decimal(10, 2)
+  paidAmount        Decimal         @default(0) @db.Decimal(10, 2)
+  pendingAmount     Decimal         @db.Decimal(10, 2)
+  
+  // Usuario que creó la reserva
+  userId            String
+  user              User            @relation(fields: [userId], references: [id])
+  
+  // Relaciones
+  rooms             ReservationRoom[]
+  dayPasses         DayPass[]
+  campingSpaces     CampingSpace[]
+  services          ReservationService[]
+  payments          Payment[]
+}
+
+enum ReservationType {
+  HABITACION
+  PASADIA
+  CAMPING
+}
+
+enum ReservationStatus {
+  PENDING
+  CONFIRMED
+  CHECKED_IN
+  CHECKED_OUT
+  CANCELLED
+  NO_SHOW
+}
+
+model ReservationRoom {
+  id              String      @id @default(cuid())
+  reservationId   String
+  reservation     Reservation @relation(fields: [reservationId], references: [id])
+  roomId          String
+  room            Room        @relation(fields: [roomId], references: [id])
+  nightlyRate     Decimal     @db.Decimal(10, 2)
+  nights          Int
+  subtotal        Decimal     @db.Decimal(10, 2)
+  
+  @@unique([reservationId, roomId])
+}
+
+model DayPass {
+  id              String      @id @default(cuid())
+  reservationId   String
+  reservation     Reservation @relation(fields: [reservationId], references: [id])
+  packageType     String
+  date            DateTime
+  persons         Int
+  pricePerPerson  Decimal     @db.Decimal(10, 2)
+  subtotal        Decimal     @db.Decimal(10, 2)
+  arrivalTime     String?
+}
+
+model CampingSpace {
+  id              String      @id @default(cuid())
+  reservationId   String
+  reservation     Reservation @relation(fields: [reservationId], references: [id])
+  spaceType       String
+  nights          Int
+  persons         Int
+  pricePerNight   Decimal     @db.Decimal(10, 2)
+  subtotal        Decimal     @db.Decimal(10, 2)
+  additionalServices Json?
+}
+
+// ============================================
+// CLIENTES (CRM)
+// ============================================
+
+model Guest {
+  id              String    @id @default(cuid())
+  firstName       String
+  lastName        String
+  email           String?   @unique
+  phone           String
+  identificationType String?
+  identificationNumber String?
+  country         String?
+  city            String?
+  address         String?
+  birthDate       DateTime?
+  notes           String?
+  isVIP           Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  reservations    Reservation[]
+}
+
+// ============================================
+// SERVICIOS ADICIONALES
+// ============================================
+
+model Service {
+  id              String    @id @default(cuid())
+  name            String
+  description     String?
+  category        ServiceCategory
+  price           Decimal   @db.Decimal(10, 2)
+  isActive        Boolean   @default(true)
+  requiresQuantity Boolean  @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  reservationServices ReservationService[]
+}
+
+enum ServiceCategory {
+  RESTAURANTE
+  SPA
+  TRANSPORTE
+  LAVANDERIA
+  CAMPING_EXTRAS
+  OTROS
+}
+
+model ReservationService {
+  id              String      @id @default(cuid())
+  reservationId   String
+  reservation     Reservation @relation(fields: [reservationId], references: [id])
+  serviceId       String
+  service         Service     @relation(fields: [serviceId], references: [id])
+  quantity        Int
+  unitPrice       Decimal     @db.Decimal(10, 2)
+  subtotal        Decimal     @db.Decimal(10, 2)
+  date            DateTime    @default(now())
+  notes           String?
+}
+
+// ============================================
+// SISTEMA DE PAGOS
+// ============================================
+
+model Payment {
+  id              String      @id @default(cuid())
+  reservationId   String
+  reservation     Reservation @relation(fields: [reservationId], references: [id])
+  amount          Decimal     @db.Decimal(10, 2)
+  method          PaymentMethod
+  reference       String?
+  status          PaymentStatus @default(COMPLETED)
+  notes           String?
+  createdAt       DateTime    @default(now())
+  userId          String
+  user            User        @relation(fields: [userId], references: [id])
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  TRANSFER
+  ONLINE
+  OTHER
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+// ============================================
+// PRECIOS DINÁMICOS
+// ============================================
+
+model PriceRule {
+  id              String    @id @default(cuid())
+  roomTypeId      String
+  roomType        RoomType  @relation(fields: [roomTypeId], references: [id])
+  name            String
+  startDate       DateTime
+  endDate         DateTime
+  multiplier      Decimal   @db.Decimal(3, 2)
+  isActive        Boolean   @default(true)
+  priority        Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+// ============================================
+// MANTENIMIENTO
+// ============================================
+
+model Maintenance {
+  id              String    @id @default(cuid())
+  roomId          String
+  room            Room      @relation(fields: [roomId], references: [id])
+  description     String
+  priority        MaintenancePriority
+  status          MaintenanceStatus @default(PENDING)
+  reportedAt      DateTime  @default(now())
+  completedAt     DateTime?
+  notes           String?
+}
+
+enum MaintenancePriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum MaintenanceStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+// ============================================
+// LOGS Y AUDITORÍA
+// ============================================
+
+model ActivityLog {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id])
+  action          String
+  entity          String
+  entityId        String?
+  details         Json?
+  ipAddress       String?
+  createdAt       DateTime  @default(now())
+}
