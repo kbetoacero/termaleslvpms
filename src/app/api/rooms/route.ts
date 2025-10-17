@@ -46,10 +46,10 @@ export async function POST(request: Request) {
 
 export async function GET() {
   try {
-    const session = await auth()
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 })
-    }
+    //const session = await auth()
+    //if (!session) {
+      //return NextResponse.json({ error: "No autorizado" }, { status: 401 })
+    //}
 
     const rooms = await prisma.room.findMany({
       include: {

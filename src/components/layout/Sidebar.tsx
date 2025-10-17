@@ -16,6 +16,7 @@ import {
   Waves,
   ChevronLeft,
   ChevronRight,
+  Calendar,
 } from "lucide-react"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -25,6 +26,11 @@ const menuItems = [
     title: "Dashboard",
     href: "/dashboard",
     icon: LayoutDashboard,
+  },
+  {
+    title: "Calendario",
+    href: "/dashboard/calendario",
+    icon: Calendar,
   },
   {
     title: "Reservas",
@@ -89,19 +95,16 @@ export default function Sidebar() {
       <div className="flex h-16 items-center justify-between border-b px-4">
         {!collapsed && (
           <Link href="/dashboard" className="flex items-center gap-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-blue-800 text-white shadow-lg">
-              <Waves className="h-6 w-6" />
-            </div>
+              <img src="/Logo-Web-Verde.png" alt="TermalesLV Logo" className="h-10"></img>
+          
             <div className="flex flex-col">
-              <span className="text-lg font-bold text-slate-900">Termales</span>
-              <span className="text-xs text-slate-500">Paradise PMS</span>
+              <span className="text-lg font-bold text-slate-900">PMS</span>
+              <span className="text-xs text-slate-500">Termales Los Volcanes</span>
             </div>
           </Link>
         )}
         {collapsed && (
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-blue-800 text-white shadow-lg mx-auto">
-            <Waves className="h-6 w-6" />
-          </div>
+           <img src="/Logo-Web-Verde.png" alt="TermalesLV Logo" className="h-8"></img>
         )}
       </div>
 

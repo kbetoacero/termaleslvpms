@@ -7,7 +7,7 @@ import SessionProvider from "@/components/providers/SessionProvider";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Termales PMS",
+  title: "PMS - Termales Los Volcanes",
   description: "Sistema de gestión para Hotel de Termales",
 };
 

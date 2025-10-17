@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Bed, DollarSign, Users, Edit, Trash2, Home } from "lucide-react"
+import { Plus, Bed, DollarSign, Users, Edit, Home } from "lucide-react"
 import {
   Table,
   TableBody,
@@ -13,6 +13,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import DeleteRoomButton from "@/components/rooms/DeleteRoomButton"
+import DeleteRoomTypeButton from "@/components/rooms/DeleteRoomTypeButton"
 
 async function getRoomsData() {
   const [roomTypes, rooms] = await Promise.all([
@@ -183,6 +185,11 @@ export default async function HabitacionesPage() {
                       Editar
                     </Button>
                   </Link>
+                  <DeleteRoomTypeButton
+                    roomTypeId={type.id}
+                    roomTypeName={type.name}
+                    hasRooms={type.rooms.length > 0}
+                  />
                 </div>
               </div>
             ))}
@@ -239,9 +246,10 @@ export default async function HabitacionesPage() {
                             <Edit className="h-4 w-4" />
                           </Button>
                         </Link>
-                        <Button variant="ghost" size="icon" className="text-red-600">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <DeleteRoomButton
+                          roomId={room.id}
+                          roomNumber={room.number}
+                        />
                       </div>
                     </TableCell>
                   </TableRow>

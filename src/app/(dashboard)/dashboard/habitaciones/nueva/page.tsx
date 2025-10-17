@@ -1,20 +1,21 @@
 // src/app/(dashboard)/dashboard/habitaciones/nueva/page.tsx
 import { prisma } from "@/lib/prisma"
-import RoomForm from "@/components/rooms/RoomTypeForm"
+import RoomForm from "@/components/rooms/RoomForm"
 
 async function getRoomTypes() {
   const roomTypes = await prisma.roomType.findMany({
     where: { isActive: true },
+    select: {
+      id: true,
+      name: true,
+    },
     orderBy: { name: 'asc' },
   })
 
-  return roomTypes.map(rt => ({
-    ...rt,
-    basePrice: Number(rt.basePrice),
-  }))
+  return roomTypes
 }
 
-export default async function NuevaHabitacionPage() {
+export default async function NewRoomPage() {
   const roomTypes = await getRoomTypes()
 
   return (

@@ -1,40 +1,87 @@
 // src/app/api/rooms/[id]/route.ts
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { auth } from "@/lib/auth"
 
-export async function PUT(
+// GET - Obtener una habitación específica
+export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth()
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 })
-    }
+    // TEMPORALMENTE SIN AUTH PARA DESARROLLO
+    // const session = await auth()
+    // if (!session) {
+    //   return NextResponse.json({ error: "No autorizado" }, { status: 401 })
+    // }
 
     const { id } = await params
+
+    const room = await prisma.room.findUnique({
+      where: { id },
+      include: {
+        roomType: true,
+      },
+    })
+
+    if (!room) {
+      return NextResponse.json(
+        { error: "Habitación no encontrada" },
+        { status: 404 }
+      )
+    }
+
+    return NextResponse.json(room)
+  } catch (error) {
+    console.error("Error fetching room:", error)
+    return NextResponse.json(
+      { error: "Error al obtener habitación" },
+      { status: 500 }
+    )
+  }
+}
+
+// PUT - Actualizar una habitación
+export async function PUT(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    // TEMPORALMENTE SIN AUTH PARA DESARROLLO
+    // const session = await auth()
+    // if (!session) {
+    //   return NextResponse.json({ error: "No autorizado" }, { status: 401 })
+    // }
+
     const data = await request.json()
 
-    // Verificar si el nuevo número ya existe en otra habitación
-    if (data.number) {
-      const existing = await prisma.room.findFirst({
-        where: {
-          number: data.number,
-          NOT: { id },
-        },
+    // Verificar si la habitación existe
+    const existingRoom = await prisma.room.findUnique({
+      where: { id: params.id },
+    })
+
+    if (!existingRoom) {
+      return NextResponse.json(
+        { error: "Habitación no encontrada" },
+        { status: 404 }
+      )
+    }
+
+    // Si se cambia el número, verificar que no esté en uso
+    if (data.number !== existingRoom.number) {
+      const duplicateNumber = await prisma.room.findUnique({
+        where: { number: data.number },
       })
 
-      if (existing) {
+      if (duplicateNumber) {
         return NextResponse.json(
-          { error: "Ya existe otra habitación con ese número" },
+          { error: "Ya existe una habitación con ese número" },
           { status: 400 }
         )
       }
     }
 
-    const room = await prisma.room.update({
-      where: { id },
+    const updatedRoom = await prisma.room.update({
+      where: { id: params.id },
       data: {
         number: data.number,
         floor: data.floor || null,
@@ -42,9 +89,12 @@ export async function PUT(
         status: data.status,
         notes: data.notes || null,
       },
+      include: {
+        roomType: true,
+      },
     })
 
-    return NextResponse.json(room)
+    return NextResponse.json(updatedRoom)
   } catch (error) {
     console.error("Error updating room:", error)
     return NextResponse.json(
@@ -54,42 +104,51 @@ export async function PUT(
   }
 }
 
+// DELETE - Eliminar una habitación
 export async function DELETE(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const session = await auth()
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 })
-    }
+    // TEMPORALMENTE SIN AUTH PARA DESARROLLO
+    // const session = await auth()
+    // if (!session) {
+    //   return NextResponse.json({ error: "No autorizado" }, { status: 401 })
+    // }
 
-    const { id } = await params
-
-    // Verificar si hay reservas activas
-    const activeReservations = await prisma.reservationRoom.count({
-      where: {
-        roomId: id,
-        reservation: {
-          status: {
-            in: ['CONFIRMED', 'CHECKED_IN'],
-          },
-        },
+    // Verificar si la habitación existe
+    const room = await prisma.room.findUnique({
+      where: { id: params.id },
+      include: {
+        reservations: true,
       },
     })
 
-    if (activeReservations > 0) {
+    if (!room) {
       return NextResponse.json(
-        { error: "No se puede eliminar. La habitación tiene reservas activas" },
+        { error: "Habitación no encontrada" },
+        { status: 404 }
+      )
+    }
+
+    // Verificar si tiene reservas activas
+    if (room.reservations.length > 0) {
+      return NextResponse.json(
+        {
+          error:
+            "No se puede eliminar la habitación porque tiene reservas asociadas",
+        },
         { status: 400 }
       )
     }
 
     await prisma.room.delete({
-      where: { id },
+      where: { id: params.id },
     })
 
-    return NextResponse.json({ success: true, message: "Habitación eliminada" })
+    return NextResponse.json({
+      message: "Habitación eliminada exitosamente",
+    })
   } catch (error) {
     console.error("Error deleting room:", error)
     return NextResponse.json(

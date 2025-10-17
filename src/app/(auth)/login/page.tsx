@@ -47,11 +47,10 @@ export default function LoginPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <div className="flex items-center justify-center mb-4">
-            <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center text-white text-2xl font-bold">
-              T
-            </div>
+            <img src="/Logo-Web-Verde.png" alt="TermalesLV Logo" className="h-20"></img>
+          
           </div>
-          <CardTitle className="text-2xl text-center">Termales PMS</CardTitle>
+          <CardTitle className="text-2xl text-center">Termales Los Volcanes</CardTitle>
           <CardDescription className="text-center">
             Ingresa tus credenciales para acceder al sistema
           </CardDescription>

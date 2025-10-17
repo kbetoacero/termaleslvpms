@@ -16,22 +16,22 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Trash2 } from "lucide-react"
 
-interface DeleteRoomButtonProps {
-  roomId: string
-  roomNumber: string
+interface DeletePriceRuleButtonProps {
+  ruleId: string
+  ruleName: string
 }
 
-export default function DeleteRoomButton({
-  roomId,
-  roomNumber,
-}: DeleteRoomButtonProps) {
+export default function DeletePriceRuleButton({
+  ruleId,
+  ruleName,
+}: DeletePriceRuleButtonProps) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
 
   const handleDelete = async () => {
     setLoading(true)
     try {
-      const response = await fetch(`/api/rooms/${roomId}`, {
+      const response = await fetch(`/api/price-rules/${ruleId}`, {
         method: "DELETE",
       })
 
@@ -44,7 +44,7 @@ export default function DeleteRoomButton({
 
       router.refresh()
     } catch (error) {
-      alert("Error al eliminar la habitación")
+      alert("Error al eliminar la regla de precio")
     } finally {
       setLoading(false)
     }
@@ -59,11 +59,10 @@ export default function DeleteRoomButton({
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>¿Eliminar habitación?</AlertDialogTitle>
+          <AlertDialogTitle>¿Eliminar regla de precio?</AlertDialogTitle>
           <AlertDialogDescription>
-            ¿Estás seguro de que deseas eliminar la habitación <strong>{roomNumber}</strong>? Esta
-            acción no se puede deshacer.
-            {" "}Si la habitación tiene reservas asociadas, no podrá ser eliminada.
+            ¿Estás seguro de que deseas eliminar la regla <strong>"{ruleName}"</strong>? 
+            Esta acción no se puede deshacer y afectará el cálculo de precios.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

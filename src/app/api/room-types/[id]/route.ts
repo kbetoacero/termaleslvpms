@@ -1,23 +1,79 @@
 // src/app/api/room-types/[id]/route.ts
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { auth } from "@/lib/auth"
 
-export async function PUT(
+// GET - Obtener un tipo de habitación específico
+export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth()
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 })
-    }
+    // TEMPORALMENTE SIN AUTH PARA DESARROLLO
+    // const session = await auth()
+    // if (!session) {
+    //   return NextResponse.json({ error: "No autorizado" }, { status: 401 })
+    // }
 
     const { id } = await params
+
+    const roomType = await prisma.roomType.findUnique({
+      where: { id },
+      include: {
+        rooms: true,
+      },
+    })
+
+    if (!roomType) {
+      return NextResponse.json(
+        { error: "Tipo de habitación no encontrado" },
+        { status: 404 }
+      )
+    }
+
+    // Convertir Decimal a número
+    const roomTypeConverted = {
+      ...roomType,
+      basePrice: Number(roomType.basePrice),
+    }
+
+    return NextResponse.json(roomTypeConverted)
+  } catch (error) {
+    console.error("Error fetching room type:", error)
+    return NextResponse.json(
+      { error: "Error al obtener tipo de habitación" },
+      { status: 500 }
+    )
+  }
+}
+
+// PUT - Actualizar un tipo de habitación
+export async function PUT(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    // TEMPORALMENTE SIN AUTH PARA DESARROLLO
+    // const session = await auth()
+    // if (!session) {
+    //   return NextResponse.json({ error: "No autorizado" }, { status: 401 })
+    // }
+
     const data = await request.json()
 
-    const roomType = await prisma.roomType.update({
-      where: { id },
+    // Verificar si el tipo existe
+    const existingRoomType = await prisma.roomType.findUnique({
+      where: { id: params.id },
+    })
+
+    if (!existingRoomType) {
+      return NextResponse.json(
+        { error: "Tipo de habitación no encontrado" },
+        { status: 404 }
+      )
+    }
+
+    const updatedRoomType = await prisma.roomType.update({
+      where: { id: params.id },
       data: {
         name: data.name,
         description: data.description || null,
@@ -27,9 +83,18 @@ export async function PUT(
         amenities: data.amenities || [],
         isActive: data.isActive ?? true,
       },
+      include: {
+        rooms: true,
+      },
     })
 
-    return NextResponse.json(roomType)
+    // Convertir Decimal a número
+    const roomTypeConverted = {
+      ...updatedRoomType,
+      basePrice: Number(updatedRoomType.basePrice),
+    }
+
+    return NextResponse.json(roomTypeConverted)
   } catch (error) {
     console.error("Error updating room type:", error)
     return NextResponse.json(
@@ -39,35 +104,51 @@ export async function PUT(
   }
 }
 
+// DELETE - Eliminar un tipo de habitación
 export async function DELETE(
   request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   try {
-    const session = await auth()
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 })
-    }
+    // TEMPORALMENTE SIN AUTH PARA DESARROLLO
+    // const session = await auth()
+    // if (!session) {
+    //   return NextResponse.json({ error: "No autorizado" }, { status: 401 })
+    // }
 
-    const { id } = await params
-
-    // Verificar si hay habitaciones asociadas
-    const roomsCount = await prisma.room.count({
-      where: { roomTypeId: id },
+    // Verificar si el tipo existe
+    const roomType = await prisma.roomType.findUnique({
+      where: { id: params.id },
+      include: {
+        rooms: true,
+      },
     })
 
-    if (roomsCount > 0) {
+    if (!roomType) {
       return NextResponse.json(
-        { error: `No se puede eliminar. Hay ${roomsCount} habitación(es) asociadas a este tipo` },
+        { error: "Tipo de habitación no encontrado" },
+        { status: 404 }
+      )
+    }
+
+    // Verificar si tiene habitaciones asociadas
+    if (roomType.rooms.length > 0) {
+      return NextResponse.json(
+        {
+          error:
+            "No se puede eliminar el tipo porque tiene habitaciones asociadas. Elimina primero las habitaciones.",
+        },
         { status: 400 }
       )
     }
 
     await prisma.roomType.delete({
-      where: { id },
+      where: { id: params.id },
     })
 
-    return NextResponse.json({ success: true, message: "Tipo eliminado" })
+    return NextResponse.json({
+      message: "Tipo de habitación eliminado exitosamente",
+    })
   } catch (error) {
     console.error("Error deleting room type:", error)
     return NextResponse.json(

@@ -1,32 +1,44 @@
 // src/app/(dashboard)/dashboard/habitaciones/[id]/page.tsx
-import { notFound } from "next/navigation"
 import { prisma } from "@/lib/prisma"
-import RoomForm from "@/components/rooms/RoomTypeForm"
+import { notFound } from "next/navigation"
+import RoomForm from "@/components/rooms/RoomForm"
 
 async function getRoomData(id: string) {
   const [room, roomTypes] = await Promise.all([
     prisma.room.findUnique({
       where: { id },
+      include: {
+        roomType: true,
+      },
     }),
     prisma.roomType.findMany({
       where: { isActive: true },
+      select: {
+        id: true,
+        name: true,
+      },
       orderBy: { name: 'asc' },
     }),
   ])
 
-  if (!room) {
-    notFound()
+  // Convertir Decimal a número si room existe
+  if (room) {
+    return {
+      room: {
+        ...room,
+        roomType: {
+          ...room.roomType,
+          basePrice: Number(room.roomType.basePrice),
+        },
+      },
+      roomTypes,
+    }
   }
 
-  const roomTypesConverted = roomTypes.map(rt => ({
-    ...rt,
-    basePrice: Number(rt.basePrice),
-  }))
-
-  return { room, roomTypes: roomTypesConverted }
+  return { room: null, roomTypes }
 }
 
-export default async function EditarHabitacionPage({
+export default async function EditRoomPage({
   params,
 }: {
   params: Promise<{ id: string }>
@@ -34,18 +46,20 @@ export default async function EditarHabitacionPage({
   const { id } = await params
   const { room, roomTypes } = await getRoomData(id)
 
+  if (!room) {
+    notFound()
+  }
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-slate-900">
-          Editar Habitación {room.number}
-        </h1>
+        <h1 className="text-3xl font-bold text-slate-900">Editar Habitación</h1>
         <p className="text-slate-500 mt-1">
-          Modifica la información de la habitación
+          Actualiza la información de la habitación {room.number}
         </p>
       </div>
 
-      <RoomForm roomTypes={roomTypes} initialData={room} />
+      <RoomForm initialData={room} roomTypes={roomTypes} />
     </div>
   )
 }
