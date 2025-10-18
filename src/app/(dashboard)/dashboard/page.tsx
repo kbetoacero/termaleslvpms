@@ -2,6 +2,7 @@
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
+import Link from "next/link"
 import {
   Users,
   Bed,
@@ -229,9 +230,11 @@ export default async function DashboardPage() {
                 <CardTitle>Últimas Reservas</CardTitle>
                 <CardDescription>Reservas más recientes del sistema</CardDescription>
               </div>
-              <Button variant="outline" size="sm">
-                Ver todas
-              </Button>
+              <Link href="/dashboard/reservas">
+                <Button variant="outline" size="sm">
+                  Ver todas
+                </Button>
+              </Link>
             </div>
           </CardHeader>
           <CardContent>
@@ -278,9 +281,11 @@ export default async function DashboardPage() {
                 <CardTitle>Próximos Check-ins</CardTitle>
                 <CardDescription>Llegadas programadas próximamente</CardDescription>
               </div>
-              <Button variant="outline" size="sm">
-                Ver calendario
-              </Button>
+              <Link href="/dashboard/calendario">
+                <Button variant="outline" size="sm">
+                  Ver calendario
+                </Button>
+              </Link>
             </div>
           </CardHeader>
           <CardContent>
@@ -330,18 +335,24 @@ export default async function DashboardPage() {
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 md:grid-cols-3">
-            <Button className="h-20 flex flex-col gap-2" variant="outline">
-              <Calendar className="h-6 w-6" />
-              <span>Nueva Reserva</span>
-            </Button>
-            <Button className="h-20 flex flex-col gap-2" variant="outline">
-              <CheckCircle2 className="h-6 w-6" />
-              <span>Check-in</span>
-            </Button>
-            <Button className="h-20 flex flex-col gap-2" variant="outline">
-              <Clock className="h-6 w-6" />
-              <span>Check-out</span>
-            </Button>
+            <Link href="/dashboard/reservas/nueva">
+              <Button className="h-20 flex flex-col gap-2 w-full" variant="outline">
+                <Calendar className="h-6 w-6" />
+                <span>Nueva Reserva</span>
+              </Button>
+            </Link>
+            <Link href="/dashboard/reservas?filter=checkin">
+              <Button className="h-20 flex flex-col gap-2 w-full" variant="outline">
+                <CheckCircle2 className="h-6 w-6" />
+                <span>Check-in</span>
+              </Button>
+            </Link>
+            <Link href="/dashboard/reservas?filter=checkout">
+              <Button className="h-20 flex flex-col gap-2 w-full" variant="outline">
+                <Clock className="h-6 w-6" />
+                <span>Check-out</span>
+              </Button>
+            </Link>
           </div>
         </CardContent>
       </Card>

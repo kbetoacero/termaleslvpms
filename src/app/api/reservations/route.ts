@@ -1,82 +1,254 @@
 // src/app/api/reservations/route.ts
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { auth } from "@/lib/auth"
 
+// Función helper para generar número de reserva
+function generateReservationNumber() {
+  const prefix = "RES"
+  const timestamp = Date.now().toString().slice(-8)
+  const random = Math.floor(Math.random() * 1000)
+    .toString()
+    .padStart(3, "0")
+  return `${prefix}-${timestamp}-${random}`
+}
+
+// GET - Obtener todas las reservas
+export async function GET(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const status = searchParams.get("status")
+    const guestId = searchParams.get("guestId")
+    const from = searchParams.get("from")
+    const to = searchParams.get("to")
+
+    const where: any = {}
+
+    if (status) {
+      where.status = status
+    }
+
+    if (guestId) {
+      where.guestId = guestId
+    }
+
+    if (from && to) {
+      where.checkIn = {
+        gte: new Date(from),
+        lte: new Date(to),
+      }
+    }
+
+    const reservations = await prisma.reservation.findMany({
+      where,
+      include: {
+        guest: true,
+        rooms: {
+          include: {
+            room: {
+              include: {
+                roomType: true,
+              },
+            },
+          },
+        },
+        payments: true,
+        services: {
+          include: {
+            service: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    })
+
+    // Convertir Decimals a números
+    const reservationsConverted = reservations.map((reservation) => ({
+      ...reservation,
+      totalAmount: Number(reservation.totalAmount),
+      paidAmount: Number(reservation.paidAmount),
+      pendingAmount: Number(reservation.pendingAmount),
+      rooms: reservation.rooms.map((resRoom) => ({
+        ...resRoom,
+        nightlyRate: Number(resRoom.nightlyRate),
+        subtotal: Number(resRoom.subtotal),
+        room: {
+          ...resRoom.room,
+          roomType: {
+            ...resRoom.room.roomType,
+            basePrice: Number(resRoom.room.roomType.basePrice),
+          },
+        },
+      })),
+      payments: reservation.payments.map((payment) => ({
+        ...payment,
+        amount: Number(payment.amount),
+      })),
+      services: reservation.services.map((service) => ({
+        ...service,
+        unitPrice: Number(service.unitPrice),
+        subtotal: Number(service.subtotal),
+      })),
+    }))
+
+    return NextResponse.json(reservationsConverted)
+  } catch (error) {
+    console.error("Error fetching reservations:", error)
+    return NextResponse.json(
+      { error: "Error al obtener reservas" },
+      { status: 500 }
+    )
+  }
+}
+
+// POST - Crear nueva reserva
 export async function POST(request: Request) {
   try {
-    const session = await auth()
+    const data = await request.json()
 
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 })
+    const {
+      guestId,
+      checkIn,
+      checkOut,
+      adults,
+      children,
+      rooms, // Array de { roomId, nightlyRate }
+      specialRequests,
+      notes,
+      userId,
+    } = data
+
+    // Validaciones
+    if (!guestId || !checkIn || !checkOut || !rooms || rooms.length === 0) {
+      return NextResponse.json(
+        { error: "Faltan campos requeridos" },
+        { status: 400 }
+      )
     }
 
-    const body = await request.json()
-    const { guestId, roomId, checkIn, checkOut, adults, children, totalAmount } = body
+    const checkInDate = new Date(checkIn)
+    const checkOutDate = new Date(checkOut)
 
-    // Generar número de reserva único
-    const reservationNumber = `RES${Date.now()}`
+    if (checkOutDate <= checkInDate) {
+      return NextResponse.json(
+        { error: "La fecha de check-out debe ser posterior al check-in" },
+        { status: 400 }
+      )
+    }
 
     // Calcular noches
-    const start = new Date(checkIn)
-    const end = new Date(checkOut)
-    const nights = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
+    const nights = Math.ceil(
+      (checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24)
+    )
 
-    // Obtener información de la habitación
-    const room = await prisma.room.findUnique({
-      where: { id: roomId },
-      include: { roomType: true },
-    })
+    // Verificar disponibilidad de las habitaciones
+    for (const roomData of rooms) {
+      const existingReservations = await prisma.reservationRoom.findMany({
+        where: {
+          roomId: roomData.roomId,
+          reservation: {
+            OR: [
+              {
+                checkIn: { lt: checkOutDate },
+                checkOut: { gt: checkInDate },
+              },
+            ],
+            status: {
+              notIn: ["CANCELLED", "NO_SHOW"],
+            },
+          },
+        },
+      })
 
-    if (!room) {
-      return NextResponse.json({ error: "Habitación no encontrada" }, { status: 404 })
+      if (existingReservations.length > 0) {
+        const room = await prisma.room.findUnique({
+          where: { id: roomData.roomId },
+        })
+        return NextResponse.json(
+          {
+            error: `La habitación ${room?.number} no está disponible en las fechas seleccionadas`,
+          },
+          { status: 400 }
+        )
+      }
     }
 
-    // Crear reserva con transacción
-    const reservation = await prisma.$transaction(async (tx) => {
-      // Crear reserva
-      const newReservation = await tx.reservation.create({
-        data: {
-          reservationNumber,
-          type: "HABITACION",
-          status: "CONFIRMED",
-          checkIn: new Date(checkIn),
-          checkOut: new Date(checkOut),
-          guestId,
-          adults,
-          children: children || 0,
-          totalAmount,
-          paidAmount: 0,
-          pendingAmount: totalAmount,
-          userId: session.user.id,
-        },
-      })
-
-      // Crear relación con habitación
-      await tx.reservationRoom.create({
-        data: {
-          reservationId: newReservation.id,
-          roomId,
-          nightlyRate: room.roomType.basePrice,
-          nights,
-          subtotal: totalAmount,
-        },
-      })
-
-      // Actualizar estado de habitación
-      await tx.room.update({
-        where: { id: roomId },
-        data: { status: "OCCUPIED" },
-      })
-
-      return newReservation
+    // Calcular totales
+    let totalAmount = 0
+    const roomsWithSubtotal = rooms.map((room: any) => {
+      const subtotal = parseFloat(room.nightlyRate) * nights
+      totalAmount += subtotal
+      return {
+        ...room,
+        nights,
+        subtotal,
+      }
     })
 
-    return NextResponse.json(reservation, { status: 201 })
+    // Crear reserva
+    const reservation = await prisma.reservation.create({
+      data: {
+        reservationNumber: generateReservationNumber(),
+        type: "HABITACION",
+        status: "PENDING",
+        checkIn: checkInDate,
+        checkOut: checkOutDate,
+        adults: parseInt(adults),
+        children: parseInt(children) || 0,
+        guestId,
+        userId: userId || "system", // TODO: Obtener del usuario autenticado
+        totalAmount,
+        paidAmount: 0,
+        pendingAmount: totalAmount,
+        specialRequests,
+        notes,
+        rooms: {
+          create: roomsWithSubtotal.map((room: any) => ({
+            roomId: room.roomId,
+            nightlyRate: parseFloat(room.nightlyRate),
+            nights,
+            subtotal: room.subtotal,
+          })),
+        },
+      },
+      include: {
+        guest: true,
+        rooms: {
+          include: {
+            room: {
+              include: {
+                roomType: true,
+              },
+            },
+          },
+        },
+      },
+    })
+
+    // Convertir Decimals
+    const reservationConverted = {
+      ...reservation,
+      totalAmount: Number(reservation.totalAmount),
+      paidAmount: Number(reservation.paidAmount),
+      pendingAmount: Number(reservation.pendingAmount),
+      rooms: reservation.rooms.map((resRoom) => ({
+        ...resRoom,
+        nightlyRate: Number(resRoom.nightlyRate),
+        subtotal: Number(resRoom.subtotal),
+        room: {
+          ...resRoom.room,
+          roomType: {
+            ...resRoom.room.roomType,
+            basePrice: Number(resRoom.room.roomType.basePrice),
+          },
+        },
+      })),
+    }
+
+    return NextResponse.json(reservationConverted, { status: 201 })
   } catch (error) {
     console.error("Error creating reservation:", error)
     return NextResponse.json(
-      { error: "Error al crear la reserva" },
+      { error: "Error al crear reserva" },
       { status: 500 }
     )
   }

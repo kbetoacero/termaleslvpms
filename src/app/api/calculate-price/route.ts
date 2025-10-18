@@ -1,6 +1,39 @@
-// src/app/api/calculate-price/route.ts
+// src/app/api/calculate-price/route.ts (REEMPLAZAR el existente)
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+
+// Función helper para verificar si una regla recurrente aplica a una fecha
+function doesRecurringRuleApply(
+  rule: any,
+  date: Date
+): boolean {
+  if (!rule.isRecurring) return false
+
+  // Verificar que esté dentro del rango de recurrencia
+  if (rule.recurringEndDate && date > new Date(rule.recurringEndDate)) {
+    return false
+  }
+
+  const dayOfWeek = date.getDay() // 0 = Domingo, 6 = Sábado
+
+  switch (rule.recurringType) {
+    case "WEEKLY":
+      // Se repite cada semana en los mismos días
+      return rule.daysOfWeek.includes(dayOfWeek)
+
+    case "CUSTOM":
+      // Días específicos de la semana
+      return rule.daysOfWeek.includes(dayOfWeek)
+
+    case "MONTHLY":
+      // Mismo día del mes
+      const ruleDate = new Date(rule.startDate)
+      return date.getDate() === ruleDate.getDate()
+
+    default:
+      return false
+  }
+}
 
 export async function POST(request: Request) {
   try {
@@ -37,19 +70,11 @@ export async function POST(request: Request) {
 
     const basePrice = Number(roomType.basePrice)
 
-    // Obtener reglas activas que apliquen
-    const rules = await prisma.priceRule.findMany({
+    // Obtener TODAS las reglas activas para este tipo de habitación
+    const allRules = await prisma.priceRule.findMany({
       where: {
         roomTypeId,
         isActive: true,
-        OR: [
-          {
-            AND: [
-              { startDate: { lte: end } },
-              { endDate: { gte: start } },
-            ],
-          },
-        ],
       },
       orderBy: { priority: 'desc' },
     })
@@ -65,11 +90,17 @@ export async function POST(request: Request) {
       const dayEnd = new Date(currentDate)
       dayEnd.setHours(23, 59, 59, 999)
 
-      // Encontrar reglas que apliquen a este día
-      const applicableRules = rules.filter((rule) => {
-        const ruleStart = new Date(rule.startDate)
-        const ruleEnd = new Date(rule.endDate)
-        return ruleStart <= dayEnd && ruleEnd >= dayStart
+      // Filtrar reglas que apliquen a este día específico
+      const applicableRules = allRules.filter((rule) => {
+        // Reglas normales (por rango de fechas)
+        if (!rule.isRecurring) {
+          const ruleStart = new Date(rule.startDate)
+          const ruleEnd = new Date(rule.endDate)
+          return ruleStart <= dayEnd && ruleEnd >= dayStart
+        }
+
+        // Reglas recurrentes
+        return doesRecurringRuleApply(rule, dayStart)
       })
 
       // Aplicar la regla con mayor prioridad
@@ -85,11 +116,15 @@ export async function POST(request: Request) {
           name: topRule.name,
           multiplier,
           priority: topRule.priority,
+          isRecurring: topRule.isRecurring,
+          recurringType: topRule.recurringType,
         }
       }
 
       dailyPrices.push({
         date: dayStart.toISOString(),
+        dayOfWeek: dayStart.getDay(),
+        dayName: ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"][dayStart.getDay()],
         basePrice,
         finalPrice: Math.round(finalPrice),
         appliedRule,
@@ -124,14 +159,19 @@ export async function POST(request: Request) {
         averagePricePerNight: Math.round(totalFinal / totalNights),
       },
       dailyPrices,
-      appliedRules: rules.map((r) => ({
-        id: r.id,
-        name: r.name,
-        startDate: r.startDate,
-        endDate: r.endDate,
-        multiplier: Number(r.multiplier),
-        priority: r.priority,
-      })),
+      appliedRules: allRules
+        .filter(r => r.isActive)
+        .map((r) => ({
+          id: r.id,
+          name: r.name,
+          startDate: r.startDate,
+          endDate: r.endDate,
+          multiplier: Number(r.multiplier),
+          priority: r.priority,
+          isRecurring: r.isRecurring,
+          recurringType: r.recurringType,
+          daysOfWeek: r.daysOfWeek,
+        })),
     })
   } catch (error) {
     console.error("Error calculating price:", error)

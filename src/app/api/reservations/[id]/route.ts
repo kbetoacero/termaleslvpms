@@ -1,24 +1,37 @@
-// src/app/api/reservations/[id]/checkin/route.ts
+// src/app/api/reservations/[id]/route.ts
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { auth } from "@/lib/auth"
 
-export async function POST(
+// GET - Obtener reserva específica
+export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth()
-    if (!session) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 })
-    }
-
     const { id } = await params
 
-    // Verificar que la reserva existe y está confirmada
     const reservation = await prisma.reservation.findUnique({
       where: { id },
-      include: { rooms: true },
+      include: {
+        guest: true,
+        rooms: {
+          include: {
+            room: {
+              include: {
+                roomType: true,
+              },
+            },
+          },
+        },
+        payments: {
+          orderBy: { createdAt: "desc" },
+        },
+        services: {
+          include: {
+            service: true,
+          },
+        },
+      },
     })
 
     if (!reservation) {
@@ -28,51 +41,133 @@ export async function POST(
       )
     }
 
-    if (reservation.status !== "CONFIRMED") {
+    // Convertir Decimals
+    const reservationConverted = {
+      ...reservation,
+      totalAmount: Number(reservation.totalAmount),
+      paidAmount: Number(reservation.paidAmount),
+      pendingAmount: Number(reservation.pendingAmount),
+      rooms: reservation.rooms.map((resRoom) => ({
+        ...resRoom,
+        nightlyRate: Number(resRoom.nightlyRate),
+        subtotal: Number(resRoom.subtotal),
+        room: {
+          ...resRoom.room,
+          roomType: {
+            ...resRoom.room.roomType,
+            basePrice: Number(resRoom.room.roomType.basePrice),
+          },
+        },
+      })),
+      payments: reservation.payments.map((payment) => ({
+        ...payment,
+        amount: Number(payment.amount),
+      })),
+      services: reservation.services.map((service) => ({
+        ...service,
+        unitPrice: Number(service.unitPrice),
+        subtotal: Number(service.subtotal),
+      })),
+    }
+
+    return NextResponse.json(reservationConverted)
+  } catch (error) {
+    console.error("Error fetching reservation:", error)
+    return NextResponse.json(
+      { error: "Error al obtener reserva" },
+      { status: 500 }
+    )
+  }
+}
+
+// PUT - Actualizar reserva
+export async function PUT(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+    const data = await request.json()
+
+    const reservation = await prisma.reservation.findUnique({
+      where: { id },
+    })
+
+    if (!reservation) {
       return NextResponse.json(
-        { error: "Solo se puede hacer check-in a reservas confirmadas" },
-        { status: 400 }
+        { error: "Reserva no encontrada" },
+        { status: 404 }
       )
     }
 
-    // Actualizar estado de reserva y habitación
-    await prisma.$transaction(async (tx) => {
-      // Actualizar reserva
-      await tx.reservation.update({
-        where: { id },
-        data: { status: "CHECKED_IN" },
-      })
-
-      // Actualizar habitaciones a ocupadas
-      for (const reservationRoom of reservation.rooms) {
-        await tx.room.update({
-          where: { id: reservationRoom.roomId },
-          data: { status: "OCCUPIED" },
-        })
-      }
-
-      // Registrar actividad
-      await tx.activityLog.create({
-        data: {
-          userId: session.user.id,
-          action: "CHECK_IN",
-          entity: "Reservation",
-          entityId: id,
-          details: {
-            reservationNumber: reservation.reservationNumber,
+    const updatedReservation = await prisma.reservation.update({
+      where: { id },
+      data: {
+        status: data.status,
+        adults: data.adults,
+        children: data.children,
+        specialRequests: data.specialRequests,
+        notes: data.notes,
+      },
+      include: {
+        guest: true,
+        rooms: {
+          include: {
+            room: {
+              include: {
+                roomType: true,
+              },
+            },
           },
         },
-      })
+      },
+    })
+
+    return NextResponse.json(updatedReservation)
+  } catch (error) {
+    console.error("Error updating reservation:", error)
+    return NextResponse.json(
+      { error: "Error al actualizar reserva" },
+      { status: 500 }
+    )
+  }
+}
+
+// DELETE - Cancelar reserva
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+
+    const reservation = await prisma.reservation.findUnique({
+      where: { id },
+    })
+
+    if (!reservation) {
+      return NextResponse.json(
+        { error: "Reserva no encontrada" },
+        { status: 404 }
+      )
+    }
+
+    // No eliminar físicamente, solo cambiar estado
+    const cancelledReservation = await prisma.reservation.update({
+      where: { id },
+      data: {
+        status: "CANCELLED",
+      },
     })
 
     return NextResponse.json({
-      success: true,
-      message: "Check-in realizado exitosamente",
+      message: "Reserva cancelada exitosamente",
+      reservation: cancelledReservation,
     })
   } catch (error) {
-    console.error("Error en check-in:", error)
+    console.error("Error cancelling reservation:", error)
     return NextResponse.json(
-      { error: "Error al realizar check-in" },
+      { error: "Error al cancelar reserva" },
       { status: 500 }
     )
   }

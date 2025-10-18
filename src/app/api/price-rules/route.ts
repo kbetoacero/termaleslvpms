@@ -107,6 +107,10 @@ export async function POST(request: Request) {
         multiplier: parseFloat(data.multiplier),
         priority: parseInt(data.priority || 0),
         isActive: data.isActive ?? true,
+        isRecurring: data.isRecurring || false,
+        recurringType: data.isRecurring ? data.recurringType : null,
+        daysOfWeek: data.isRecurring ? (data.daysOfWeek || []) : [],
+        recurringEndDate: data.recurringEndDate ? new Date(data.recurringEndDate) : null,
       },
       include: {
         roomType: true,

@@ -17,6 +17,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Calendar,
+  TrendingUp,
 } from "lucide-react"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -42,6 +43,11 @@ const menuItems = [
     title: "Habitaciones",
     href: "/dashboard/habitaciones",
     icon: Bed,
+  },
+  {
+    title: "Precios",
+    href: "/dashboard/precios",
+    icon: TrendingUp,
   },
   {
     title: "Pasadías",
@@ -95,16 +101,19 @@ export default function Sidebar() {
       <div className="flex h-16 items-center justify-between border-b px-4">
         {!collapsed && (
           <Link href="/dashboard" className="flex items-center gap-2">
-              <img src="/Logo-Web-Verde.png" alt="TermalesLV Logo" className="h-10"></img>
-          
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-blue-800 text-white shadow-lg">
+              <Waves className="h-6 w-6" />
+            </div>
             <div className="flex flex-col">
-              <span className="text-lg font-bold text-slate-900">PMS</span>
-              <span className="text-xs text-slate-500">Termales Los Volcanes</span>
+              <span className="text-lg font-bold text-slate-900">Termales</span>
+              <span className="text-xs text-slate-500">Paradise PMS</span>
             </div>
           </Link>
         )}
         {collapsed && (
-           <img src="/Logo-Web-Verde.png" alt="TermalesLV Logo" className="h-8"></img>
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-blue-800 text-white shadow-lg mx-auto">
+            <Waves className="h-6 w-6" />
+          </div>
         )}
       </div>
 

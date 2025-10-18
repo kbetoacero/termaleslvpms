@@ -290,8 +290,22 @@ model PriceRule {
   multiplier      Decimal   @db.Decimal(3, 2)
   isActive        Boolean   @default(true)
   priority        Int       @default(0)
+
+  // ⭐ NUEVOS CAMPOS PARA RECURRENCIA
+  isRecurring     Boolean   @default(false)
+  recurringType   RecurringType?
+  daysOfWeek      Int[]     // Array de días: 0=Domingo, 1=Lunes, ..., 6=Sábado
+  recurringEndDate DateTime? // Hasta qué fecha se repite
+
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+}
+
+// ⭐ NUEVO ENUM
+enum RecurringType {
+  WEEKLY        // Se repite semanalmente
+  MONTHLY       // Se repite mensualmente (mismo día del mes)
+  CUSTOM        // Días específicos de la semana
 }
 
 // ============================================
@@ -339,3 +353,4 @@ model ActivityLog {
   ipAddress       String?
   createdAt       DateTime  @default(now())
 }
+

@@ -84,6 +84,10 @@ export async function PUT(
         multiplier: data.multiplier ? parseFloat(data.multiplier) : undefined,
         priority: data.priority !== undefined ? parseInt(data.priority) : undefined,
         isActive: data.isActive,
+        isRecurring: data.isRecurring,
+        recurringType: data.isRecurring ? data.recurringType : null,
+        daysOfWeek: data.isRecurring ? (data.daysOfWeek || []) : [],
+        recurringEndDate: data.recurringEndDate ? new Date(data.recurringEndDate) : null,
       },
       include: {
         roomType: true,
