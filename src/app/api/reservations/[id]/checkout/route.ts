@@ -8,6 +8,8 @@ export async function POST(
 ) {
   try {
     const { id } = await params
+    const body = await request.json().catch(() => ({}))
+    const forceCheckout = body.force || false
 
     const reservation = await prisma.reservation.findUnique({
       where: { id },
@@ -30,11 +32,14 @@ export async function POST(
       )
     }
 
-    // Verificar que no haya saldo pendiente
-    if (Number(reservation.pendingAmount) > 0) {
+    // Verificar saldo pendiente (advertencia, no bloqueo)
+    const hasPendingAmount = Number(reservation.pendingAmount) > 0
+
+    if (hasPendingAmount && !forceCheckout) {
       return NextResponse.json(
         {
-          error: "No se puede hacer check-out con saldo pendiente",
+          error: "pending_amount",
+          message: "La reserva tiene un saldo pendiente",
           pendingAmount: Number(reservation.pendingAmount),
         },
         { status: 400 }
@@ -62,6 +67,7 @@ export async function POST(
     return NextResponse.json({
       message: "Check-out realizado exitosamente",
       reservation: updatedReservation,
+      warning: hasPendingAmount ? "Reserva con saldo pendiente" : null,
     })
   } catch (error) {
     console.error("Error during check-out:", error)
