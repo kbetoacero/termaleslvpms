@@ -13,18 +13,24 @@ datasource db {
 // ============================================
 
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  name          String
-  password      String
-  role          UserRole  @default(STAFF)
-  isActive      Boolean   @default(true)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String
+  role      UserRole @default(STAFF)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   reservations  Reservation[]
   payments      Payment[]
   activityLogs  ActivityLog[]
+  notifications Notification[] // 👈 Agregar esta línea
+
+  // HOUSEKEEPING
+  assignedTasks HousekeepingTask[] @relation("AssignedTasks")
+  createdTasks  HousekeepingTask[] @relation("CreatedTasks")
+  cleaningLogs  CleaningLog[]      @relation("CleaningLogs")
 }
 
 enum UserRole {
@@ -32,6 +38,7 @@ enum UserRole {
   MANAGER
   RECEPTIONIST
   STAFF
+  HOUSEKEEPING
 }
 
 // ============================================
@@ -39,20 +46,20 @@ enum UserRole {
 // ============================================
 
 model RoomType {
-  id              String    @id @default(cuid())
-  name            String
-  description     String?
-  category        RoomCategory
-  capacity        Int
-  basePrice       Decimal   @db.Decimal(10, 2)
-  images          String[]
-  amenities       String[]
-  isActive        Boolean   @default(true)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  
-  rooms           Room[]
-  priceRules      PriceRule[]
+  id          String       @id @default(cuid())
+  name        String
+  description String?
+  category    RoomCategory
+  capacity    Int
+  basePrice   Decimal      @db.Decimal(10, 2)
+  images      String[]
+  amenities   String[]
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  rooms      Room[]
+  priceRules PriceRule[]
 }
 
 enum RoomCategory {
@@ -62,18 +69,26 @@ enum RoomCategory {
 }
 
 model Room {
-  id              String    @id @default(cuid())
-  roomTypeId      String
-  roomType        RoomType  @relation(fields: [roomTypeId], references: [id])
-  number          String    @unique
-  floor           String?
-  status          RoomStatus @default(AVAILABLE)
-  notes           String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  
-  reservations    ReservationRoom[]
-  maintenances    Maintenance[]
+  id         String     @id @default(cuid())
+  roomTypeId String
+  roomType   RoomType   @relation(fields: [roomTypeId], references: [id])
+  number     String     @unique
+  floor      String?
+  status     RoomStatus @default(AVAILABLE)
+  notes      String?
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  reservations ReservationRoom[]
+  maintenances Maintenance[]
+
+  // HOUSEKEEPING
+  cleaningStatus    CleaningStatus     @default(CLEAN)
+  lastCleaned       DateTime?
+  assignedTo        String?
+  cleaningPriority  CleaningPriority   @default(NORMAL)
+  housekeepingTasks HousekeepingTask[]
+  cleaningLogs      CleaningLog[]
 }
 
 enum RoomStatus {
@@ -89,42 +104,42 @@ enum RoomStatus {
 // ============================================
 
 model Reservation {
-  id                String          @id @default(cuid())
-  reservationNumber String          @unique
+  id                String            @id @default(cuid())
+  reservationNumber String            @unique
   type              ReservationType
   status            ReservationStatus @default(PENDING)
-  
+
   // Fechas
-  checkIn           DateTime
-  checkOut          DateTime
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
-  
+  checkIn   DateTime
+  checkOut  DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Cliente
-  guestId           String
-  guest             Guest           @relation(fields: [guestId], references: [id])
-  
+  guestId String
+  guest   Guest  @relation(fields: [guestId], references: [id])
+
   // Información adicional
-  adults            Int
-  children          Int             @default(0)
-  specialRequests   String?
-  notes             String?
-  
+  adults          Int
+  children        Int     @default(0)
+  specialRequests String?
+  notes           String?
+
   // Financiero
-  totalAmount       Decimal         @db.Decimal(10, 2)
-  paidAmount        Decimal         @default(0) @db.Decimal(10, 2)
-  pendingAmount     Decimal         @db.Decimal(10, 2)
-  
+  totalAmount   Decimal @db.Decimal(10, 2)
+  paidAmount    Decimal @default(0) @db.Decimal(10, 2)
+  pendingAmount Decimal @db.Decimal(10, 2)
+
   // Usuario que creó la reserva
-  userId            String
-  user              User            @relation(fields: [userId], references: [id])
-  
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
   // Relaciones
-  rooms             ReservationRoom[]
-  dayPasses         DayPass[]
-  campingSpaces     CampingSpace[]
-  services          ReservationService[]
-  payments          Payment[]
+  rooms         ReservationRoom[]
+  dayPasses     DayPass[]
+  campingSpaces CampingSpace[]
+  services      ReservationService[]
+  payments      Payment[]
 }
 
 enum ReservationType {
@@ -143,39 +158,39 @@ enum ReservationStatus {
 }
 
 model ReservationRoom {
-  id              String      @id @default(cuid())
-  reservationId   String
-  reservation     Reservation @relation(fields: [reservationId], references: [id])
-  roomId          String
-  room            Room        @relation(fields: [roomId], references: [id])
-  nightlyRate     Decimal     @db.Decimal(10, 2)
-  nights          Int
-  subtotal        Decimal     @db.Decimal(10, 2)
-  
+  id            String      @id @default(cuid())
+  reservationId String
+  reservation   Reservation @relation(fields: [reservationId], references: [id])
+  roomId        String
+  room          Room        @relation(fields: [roomId], references: [id])
+  nightlyRate   Decimal     @db.Decimal(10, 2)
+  nights        Int
+  subtotal      Decimal     @db.Decimal(10, 2)
+
   @@unique([reservationId, roomId])
 }
 
 model DayPass {
-  id              String      @id @default(cuid())
-  reservationId   String
-  reservation     Reservation @relation(fields: [reservationId], references: [id])
-  packageType     String
-  date            DateTime
-  persons         Int
-  pricePerPerson  Decimal     @db.Decimal(10, 2)
-  subtotal        Decimal     @db.Decimal(10, 2)
-  arrivalTime     String?
+  id             String      @id @default(cuid())
+  reservationId  String
+  reservation    Reservation @relation(fields: [reservationId], references: [id])
+  packageType    String
+  date           DateTime
+  persons        Int
+  pricePerPerson Decimal     @db.Decimal(10, 2)
+  subtotal       Decimal     @db.Decimal(10, 2)
+  arrivalTime    String?
 }
 
 model CampingSpace {
-  id              String      @id @default(cuid())
-  reservationId   String
-  reservation     Reservation @relation(fields: [reservationId], references: [id])
-  spaceType       String
-  nights          Int
-  persons         Int
-  pricePerNight   Decimal     @db.Decimal(10, 2)
-  subtotal        Decimal     @db.Decimal(10, 2)
+  id                 String      @id @default(cuid())
+  reservationId      String
+  reservation        Reservation @relation(fields: [reservationId], references: [id])
+  spaceType          String
+  nights             Int
+  persons            Int
+  pricePerNight      Decimal     @db.Decimal(10, 2)
+  subtotal           Decimal     @db.Decimal(10, 2)
   additionalServices Json?
 }
 
@@ -184,23 +199,23 @@ model CampingSpace {
 // ============================================
 
 model Guest {
-  id              String    @id @default(cuid())
-  firstName       String
-  lastName        String
-  email           String?   @unique
-  phone           String
-  identificationType String?
+  id                   String    @id @default(cuid())
+  firstName            String
+  lastName             String
+  email                String?   @unique
+  phone                String
+  identificationType   String?
   identificationNumber String?
-  country         String?
-  city            String?
-  address         String?
-  birthDate       DateTime?
-  notes           String?
-  isVIP           Boolean   @default(false)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  
-  reservations    Reservation[]
+  country              String?
+  city                 String?
+  address              String?
+  birthDate            DateTime?
+  notes                String?
+  isVIP                Boolean   @default(false)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  reservations Reservation[]
 }
 
 // ============================================
@@ -208,16 +223,16 @@ model Guest {
 // ============================================
 
 model Service {
-  id              String    @id @default(cuid())
-  name            String
-  description     String?
-  category        ServiceCategory
-  price           Decimal   @db.Decimal(10, 2)
-  isActive        Boolean   @default(true)
-  requiresQuantity Boolean  @default(true)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  
+  id               String          @id @default(cuid())
+  name             String
+  description      String?
+  category         ServiceCategory
+  price            Decimal         @db.Decimal(10, 2)
+  isActive         Boolean         @default(true)
+  requiresQuantity Boolean         @default(true)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
   reservationServices ReservationService[]
 }
 
@@ -231,16 +246,16 @@ enum ServiceCategory {
 }
 
 model ReservationService {
-  id              String      @id @default(cuid())
-  reservationId   String
-  reservation     Reservation @relation(fields: [reservationId], references: [id])
-  serviceId       String
-  service         Service     @relation(fields: [serviceId], references: [id])
-  quantity        Int
-  unitPrice       Decimal     @db.Decimal(10, 2)
-  subtotal        Decimal     @db.Decimal(10, 2)
-  date            DateTime    @default(now())
-  notes           String?
+  id            String      @id @default(cuid())
+  reservationId String
+  reservation   Reservation @relation(fields: [reservationId], references: [id])
+  serviceId     String
+  service       Service     @relation(fields: [serviceId], references: [id])
+  quantity      Int
+  unitPrice     Decimal     @db.Decimal(10, 2)
+  subtotal      Decimal     @db.Decimal(10, 2)
+  date          DateTime    @default(now())
+  notes         String?
 }
 
 // ============================================
@@ -248,17 +263,17 @@ model ReservationService {
 // ============================================
 
 model Payment {
-  id              String      @id @default(cuid())
-  reservationId   String
-  reservation     Reservation @relation(fields: [reservationId], references: [id])
-  amount          Decimal     @db.Decimal(10, 2)
-  method          PaymentMethod
-  reference       String?
-  status          PaymentStatus @default(COMPLETED)
-  notes           String?
-  createdAt       DateTime    @default(now())
-  userId          String
-  user            User        @relation(fields: [userId], references: [id])
+  id            String        @id @default(cuid())
+  reservationId String
+  reservation   Reservation   @relation(fields: [reservationId], references: [id])
+  amount        Decimal       @db.Decimal(10, 2)
+  method        PaymentMethod
+  reference     String?
+  status        PaymentStatus @default(COMPLETED)
+  notes         String?
+  createdAt     DateTime      @default(now())
+  userId        String
+  user          User          @relation(fields: [userId], references: [id])
 }
 
 enum PaymentMethod {
@@ -281,31 +296,31 @@ enum PaymentStatus {
 // ============================================
 
 model PriceRule {
-  id              String    @id @default(cuid())
-  roomTypeId      String
-  roomType        RoomType  @relation(fields: [roomTypeId], references: [id])
-  name            String
-  startDate       DateTime
-  endDate         DateTime
-  multiplier      Decimal   @db.Decimal(3, 2)
-  isActive        Boolean   @default(true)
-  priority        Int       @default(0)
+  id         String   @id @default(cuid())
+  roomTypeId String
+  roomType   RoomType @relation(fields: [roomTypeId], references: [id])
+  name       String
+  startDate  DateTime
+  endDate    DateTime
+  multiplier Decimal  @db.Decimal(3, 2)
+  isActive   Boolean  @default(true)
+  priority   Int      @default(0)
 
   // ⭐ NUEVOS CAMPOS PARA RECURRENCIA
-  isRecurring     Boolean   @default(false)
-  recurringType   RecurringType?
-  daysOfWeek      Int[]     // Array de días: 0=Domingo, 1=Lunes, ..., 6=Sábado
+  isRecurring      Boolean        @default(false)
+  recurringType    RecurringType?
+  daysOfWeek       Int[] // Array de días: 0=Domingo, 1=Lunes, ..., 6=Sábado
   recurringEndDate DateTime? // Hasta qué fecha se repite
 
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // ⭐ NUEVO ENUM
 enum RecurringType {
-  WEEKLY        // Se repite semanalmente
-  MONTHLY       // Se repite mensualmente (mismo día del mes)
-  CUSTOM        // Días específicos de la semana
+  WEEKLY // Se repite semanalmente
+  MONTHLY // Se repite mensualmente (mismo día del mes)
+  CUSTOM // Días específicos de la semana
 }
 
 // ============================================
@@ -313,15 +328,15 @@ enum RecurringType {
 // ============================================
 
 model Maintenance {
-  id              String    @id @default(cuid())
-  roomId          String
-  room            Room      @relation(fields: [roomId], references: [id])
-  description     String
-  priority        MaintenancePriority
-  status          MaintenanceStatus @default(PENDING)
-  reportedAt      DateTime  @default(now())
-  completedAt     DateTime?
-  notes           String?
+  id          String              @id @default(cuid())
+  roomId      String
+  room        Room                @relation(fields: [roomId], references: [id])
+  description String
+  priority    MaintenancePriority
+  status      MaintenanceStatus   @default(PENDING)
+  reportedAt  DateTime            @default(now())
+  completedAt DateTime?
+  notes       String?
 }
 
 enum MaintenancePriority {
@@ -343,14 +358,223 @@ enum MaintenanceStatus {
 // ============================================
 
 model ActivityLog {
-  id              String    @id @default(cuid())
-  userId          String
-  user            User      @relation(fields: [userId], references: [id])
-  action          String
-  entity          String
-  entityId        String?
-  details         Json?
-  ipAddress       String?
-  createdAt       DateTime  @default(now())
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  action    String
+  entity    String
+  entityId  String?
+  details   Json?
+  ipAddress String?
+  createdAt DateTime @default(now())
 }
 
+// Agregar al final de tu prisma/schema.prisma
+
+// ============================================
+// SISTEMA DE NOTIFICACIONES
+// ============================================
+
+model Notification {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type    NotificationType
+  title   String
+  message String
+  link    String? // URL para navegar al hacer clic
+
+  isRead Boolean   @default(false)
+  readAt DateTime?
+
+  // Metadata adicional (JSON para flexibilidad)
+  metadata Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+}
+
+enum NotificationType {
+  CHECKIN // Check-in pendiente
+  CHECKOUT // Check-out del día
+  NEW_RESERVATION // Nueva reserva creada
+  PAYMENT_PENDING // Pago pendiente
+  PAYMENT_RECEIVED // Pago recibido
+  MAINTENANCE // Mantenimiento urgente
+  LOW_INVENTORY // Pocas habitaciones disponibles
+  SYSTEM // Notificación del sistema
+}
+
+
+// ============================================
+// HOUSEKEEPING - GESTIÓN DE LIMPIEZA
+// ============================================
+
+// Agregar al modelo Room existente:
+// cleaningStatus    CleaningStatus @default(CLEAN)
+// lastCleaned       DateTime?
+// assignedTo        String?
+// cleaningPriority  CleaningPriority @default(NORMAL)
+// housekeepingTasks HousekeepingTask[]
+// cleaningLogs      CleaningLog[]
+
+enum CleaningStatus {
+  DIRTY // Sucia - Después del check-out
+  CLEANING // En limpieza - Asignada/en proceso
+  CLEAN // Limpia - Lista para check-in
+  INSPECTED // Inspeccionada - Verificada por supervisor
+  OUT_OF_ORDER // Fuera de servicio - Mantenimiento
+}
+
+enum CleaningPriority {
+  LOW // Baja - Sin urgencia
+  NORMAL // Normal - Limpieza estándar
+  HIGH // Alta - Check-in próximo
+  URGENT // Urgente - Check-in inmediato
+}
+
+enum TaskStatus {
+  PENDING // Pendiente
+  IN_PROGRESS // En progreso
+  COMPLETED // Completada
+  CANCELLED // Cancelada
+}
+
+enum TaskType {
+  CHECKOUT_CLEANING // Limpieza después del check-out
+  DAILY_CLEANING // Limpieza diaria durante estadía
+  GUEST_REQUEST // Solicitud del huésped
+  INSPECTION // Inspección
+  DEEP_CLEANING // Limpieza profunda
+  MAINTENANCE // Mantenimiento preventivo
+}
+
+// Tarea de limpieza
+model HousekeepingTask {
+  id     String @id @default(cuid())
+  roomId String
+  room   Room   @relation(fields: [roomId], references: [id])
+
+  type     TaskType
+  status   TaskStatus       @default(PENDING)
+  priority CleaningPriority @default(NORMAL)
+
+  // Asignación
+  assignedToId String?
+  assignedTo   User?     @relation("AssignedTasks", fields: [assignedToId], references: [id])
+  assignedAt   DateTime?
+
+  // Supervisor que creó la tarea
+  createdById String
+  createdBy   User   @relation("CreatedTasks", fields: [createdById], references: [id])
+
+  // Tiempos
+  startedAt        DateTime?
+  completedAt      DateTime?
+  estimatedMinutes Int       @default(30) // Tiempo estimado
+  actualMinutes    Int? // Tiempo real
+
+  // Detalles
+  notes        String?
+  guestRequest String? // Si es solicitud del huésped
+
+  // Checklist
+  checklistItems ChecklistItem[]
+
+  // Problemas reportados
+  issues              String?
+  requiresMaintenance Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([roomId])
+  @@index([assignedToId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// Items del checklist
+model ChecklistItem {
+  id     String           @id @default(cuid())
+  taskId String
+  task   HousekeepingTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  templateId String?
+  template   ChecklistTemplate? @relation(fields: [templateId], references: [id])
+
+  description String
+  isCompleted Boolean   @default(false)
+  completedAt DateTime?
+  order       Int       @default(0)
+
+  @@index([taskId])
+}
+
+// Plantillas de checklist (configurables)
+model ChecklistTemplate {
+  id           String        @id @default(cuid())
+  name         String
+  description  String?
+  roomCategory RoomCategory? // null = aplica a todas
+
+  items          ChecklistTemplateItem[]
+  checklistItems ChecklistItem[]
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ChecklistTemplateItem {
+  id         String            @id @default(cuid())
+  templateId String
+  template   ChecklistTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  description String
+  order       Int     @default(0)
+  isRequired  Boolean @default(true)
+
+  @@index([templateId])
+}
+
+// Historial de limpieza
+model CleaningLog {
+  id     String @id @default(cuid())
+  roomId String
+  room   Room   @relation(fields: [roomId], references: [id])
+
+  taskId String?
+
+  previousStatus CleaningStatus
+  newStatus      CleaningStatus
+
+  changedById String
+  changedBy   User   @relation("CleaningLogs", fields: [changedById], references: [id])
+
+  notes    String?
+  duration Int? // Minutos que tomó
+
+  createdAt DateTime @default(now())
+
+  @@index([roomId])
+  @@index([createdAt])
+}
+
+// Actualizar modelo User para incluir relaciones
+// Agregar estas líneas al modelo User existente:
+// assignedTasks       HousekeepingTask[] @relation("AssignedTasks")
+// createdTasks        HousekeepingTask[] @relation("CreatedTasks")
+// cleaningLogs        CleaningLog[]      @relation("CleaningLogs")
+
+// Actualizar modelo Room
+// Agregar al final del modelo Room existente:
+// cleaningStatus      CleaningStatus     @default(CLEAN)
+// lastCleaned         DateTime?
+// assignedTo          String?
+// cleaningPriority    CleaningPriority   @default(NORMAL)
+// housekeepingTasks   HousekeepingTask[]
+// cleaningLogs        CleaningLog[]

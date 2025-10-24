@@ -1,10 +1,10 @@
-// src/app/(dashboard)/dashboard/habitaciones/page.tsx
+// src/app/dashboard/(dashboard)/habitaciones/page.tsx
 import Link from "next/link"
 import { prisma } from "@/lib/prisma"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Bed, DollarSign, Users, Edit, Home } from "lucide-react"
+import { Plus, Bed, DollarSign, Users, Edit, Home, Sparkles } from "lucide-react"
 import {
   Table,
   TableBody,
@@ -27,6 +27,15 @@ async function getRoomsData() {
     prisma.room.findMany({
       include: {
         roomType: true,
+        housekeepingTasks: {
+          where: {
+            status: {
+              in: ["PENDING", "IN_PROGRESS"],
+            },
+          },
+          take: 1,
+          orderBy: { createdAt: "desc" },
+        },
       },
       orderBy: { number: 'asc' },
     }),
@@ -40,9 +49,9 @@ async function getRoomsData() {
 
   const stats = {
     total: rooms.length,
-    available: rooms.filter(r => r.status === 'AVAILABLE').length,
+    available: rooms.filter(r => r.status === 'AVAILABLE' && r.cleaningStatus === 'CLEAN').length,
     occupied: rooms.filter(r => r.status === 'OCCUPIED').length,
-    cleaning: rooms.filter(r => r.status === 'CLEANING').length,
+    cleaning: rooms.filter(r => r.cleaningStatus === 'CLEANING' || r.cleaningStatus === 'DIRTY').length,
     maintenance: rooms.filter(r => r.status === 'MAINTENANCE').length,
   }
 
@@ -55,6 +64,14 @@ const statusConfig = {
   CLEANING: { label: 'Limpieza', color: 'bg-yellow-100 text-yellow-700' },
   MAINTENANCE: { label: 'Mantenimiento', color: 'bg-orange-100 text-orange-700' },
   BLOCKED: { label: 'Bloqueada', color: 'bg-gray-100 text-gray-700' },
+}
+
+const cleaningStatusConfig = {
+  DIRTY: { label: 'Sucia', color: 'bg-red-50 text-red-700 border-red-200' },
+  CLEANING: { label: 'En Limpieza', color: 'bg-yellow-50 text-yellow-700 border-yellow-200' },
+  CLEAN: { label: 'Limpia', color: 'bg-green-50 text-green-700 border-green-200' },
+  INSPECTED: { label: 'Inspeccionada', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+  OUT_OF_ORDER: { label: 'Fuera de Servicio', color: 'bg-slate-50 text-slate-700 border-slate-200' },
 }
 
 export default async function HabitacionesPage() {
@@ -79,6 +96,12 @@ export default async function HabitacionesPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Link href="/dashboard/housekeeping">
+            <Button variant="outline" className="gap-2">
+              <Sparkles className="h-4 w-4" />
+              Housekeeping
+            </Button>
+          </Link>
           <Link href="/dashboard/habitaciones/tipos/nueva">
             <Button variant="outline" className="gap-2">
               <Plus className="h-4 w-4" />
@@ -110,6 +133,7 @@ export default async function HabitacionesPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">{stats.available}</div>
+            <p className="text-xs text-slate-500 mt-1">Limpias y listas</p>
           </CardContent>
         </Card>
         <Card>
@@ -126,6 +150,7 @@ export default async function HabitacionesPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-yellow-600">{stats.cleaning}</div>
+            <p className="text-xs text-slate-500 mt-1">Sucias o en proceso</p>
           </CardContent>
         </Card>
         <Card>
@@ -215,6 +240,7 @@ export default async function HabitacionesPage() {
                 <TableHead>Capacidad</TableHead>
                 <TableHead>Precio/Noche</TableHead>
                 <TableHead>Estado</TableHead>
+                <TableHead>Limpieza</TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
@@ -239,6 +265,21 @@ export default async function HabitacionesPage() {
                         {statusConfig[room.status as keyof typeof statusConfig].label}
                       </Badge>
                     </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col gap-1">
+                        <Badge
+                          variant="outline"
+                          className={cleaningStatusConfig[room.cleaningStatus as keyof typeof cleaningStatusConfig].color}
+                        >
+                          {cleaningStatusConfig[room.cleaningStatus as keyof typeof cleaningStatusConfig].label}
+                        </Badge>
+                        {room.housekeepingTasks.length > 0 && (
+                          <span className="text-xs text-slate-500">
+                            Tarea pendiente
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
                         <Link href={`/dashboard/habitaciones/${room.id}`}>
@@ -256,7 +297,7 @@ export default async function HabitacionesPage() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-12">
+                  <TableCell colSpan={8} className="text-center py-12">
                     <Bed className="h-12 w-12 mx-auto mb-4 text-slate-300" />
                     <p className="text-slate-500">No hay habitaciones registradas</p>
                   </TableCell>

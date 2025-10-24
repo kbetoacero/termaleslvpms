@@ -1,6 +1,6 @@
 "use client"
 
-import { Bell, Search, User, LogOut, Settings, Menu } from "lucide-react"
+import { Bell, Search, User, LogOut, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -13,6 +13,10 @@ import {
 import { Input } from "@/components/ui/input"
 import { signOut } from "next-auth/react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { useNotifications } from "@/hooks/useNotifications"
+import { useRouter } from "next/navigation"
+import { formatDistanceToNow } from "date-fns"
+import { es } from "date-fns/locale"
 
 interface HeaderProps {
   user: {
@@ -23,6 +27,9 @@ interface HeaderProps {
 }
 
 export default function Header({ user }: HeaderProps) {
+  const router = useRouter()
+  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications()
+
   const getInitials = (name?: string | null) => {
     if (!name) return "U"
     return name
@@ -31,6 +38,30 @@ export default function Header({ user }: HeaderProps) {
       .join("")
       .toUpperCase()
       .slice(0, 2)
+  }
+
+  const getNotificationIcon = (type: string) => {
+    // Puedes agregar diferentes iconos según el tipo
+    return "📌"
+  }
+
+  const handleNotificationClick = async (notification: any) => {
+    // Marcar como leída
+    if (!notification.isRead) {
+      await markAsRead.mutateAsync(notification.id)
+    }
+    
+    // Navegar si tiene link
+    if (notification.link) {
+      router.push(notification.link)
+    }
+  }
+
+  const formatTimeAgo = (date: string) => {
+    return formatDistanceToNow(new Date(date), { 
+      addSuffix: true, 
+      locale: es 
+    })
   }
 
   return (
@@ -79,39 +110,85 @@ export default function Header({ user }: HeaderProps) {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="relative">
               <Bell className="h-5 w-5" />
-              <span className="absolute right-1 top-1 flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
-              </span>
+              {unreadCount > 0 && (
+                <>
+                  <span className="absolute right-1 top-1 flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                  </span>
+                  <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                </>
+              )}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-80">
-            <DropdownMenuLabel>Notificaciones</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <div className="p-2 space-y-2">
-              <div className="rounded-lg border p-3 hover:bg-slate-50 cursor-pointer">
-                <div className="flex justify-between items-start mb-1">
-                  <p className="text-sm font-medium">Nueva reserva</p>
-                  <span className="text-xs text-slate-500">Hace 5 min</span>
-                </div>
-                <p className="text-xs text-slate-600">
-                  Juan Pérez - Habitación 205
-                </p>
-              </div>
-              <div className="rounded-lg border p-3 hover:bg-slate-50 cursor-pointer">
-                <div className="flex justify-between items-start mb-1">
-                  <p className="text-sm font-medium">Check-in pendiente</p>
-                  <span className="text-xs text-slate-500">Hace 15 min</span>
-                </div>
-                <p className="text-xs text-slate-600">
-                  María García - Suite 301
-                </p>
-              </div>
+            <div className="flex items-center justify-between px-4 py-2">
+              <DropdownMenuLabel className="p-0">
+                Notificaciones
+              </DropdownMenuLabel>
+              {unreadCount > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-auto p-0 text-xs text-blue-600 hover:text-blue-700"
+                  onClick={() => markAllAsRead.mutate()}
+                >
+                  Marcar todas como leídas
+                </Button>
+              )}
             </div>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="justify-center text-blue-600">
-              Ver todas las notificaciones
-            </DropdownMenuItem>
+            
+            <div className="max-h-[400px] overflow-y-auto">
+              {notifications.length > 0 ? (
+                <div className="p-2 space-y-2">
+                  {notifications.slice(0, 10).map((notification) => (
+                    <div
+                      key={notification.id}
+                      className={`rounded-lg border p-3 cursor-pointer transition-colors ${
+                        notification.isRead 
+                          ? "hover:bg-slate-50" 
+                          : "bg-blue-50 hover:bg-blue-100 border-blue-200"
+                      }`}
+                      onClick={() => handleNotificationClick(notification)}
+                    >
+                      <div className="flex justify-between items-start mb-1">
+                        <p className={`text-sm font-medium ${
+                          !notification.isRead ? "text-blue-900" : "text-slate-900"
+                        }`}>
+                          {getNotificationIcon(notification.type)} {notification.title}
+                        </p>
+                        <span className="text-xs text-slate-500">
+                          {formatTimeAgo(notification.createdAt)}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-600">
+                        {notification.message}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-8 text-center text-slate-500">
+                  <Bell className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No tienes notificaciones</p>
+                </div>
+              )}
+            </div>
+
+            {notifications.length > 10 && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem 
+                  className="justify-center text-blue-600 cursor-pointer"
+                  onClick={() => router.push("/dashboard/notificaciones")}
+                >
+                  Ver todas las notificaciones
+                </DropdownMenuItem>
+              </>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -138,11 +215,11 @@ export default function Header({ user }: HeaderProps) {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push("/dashboard/perfil")}>
               <User className="mr-2 h-4 w-4" />
               Mi Perfil
             </DropdownMenuItem>
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push("/dashboard/configuracion")}>
               <Settings className="mr-2 h-4 w-4" />
               Configuración
             </DropdownMenuItem>

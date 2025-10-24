@@ -1,0 +1,55 @@
+.
+├── README.md
+├── components.json
+├── eslint.config.mjs
+├── estructura.txt
+├── next-env.d.ts
+├── next.config.mjs
+├── next.config.ts
+├── package-lock.json
+├── package.json
+├── postcss.config.mjs
+├── prisma
+│   ├── migrations
+│   │   ├── 20251016210300_init
+│   │   ├── 20251017191116_add_recurring_rules
+│   │   └── migration_lock.toml
+│   ├── schema.prisma
+│   └── seed.ts
+├── project-structure.txt
+├── public
+│   ├── Logo-Web-Verde.png
+│   ├── file.svg
+│   ├── globe.svg
+│   ├── next.svg
+│   ├── vercel.svg
+│   └── window.svg
+├── src
+│   ├── app
+│   │   ├── (auth)
+│   │   ├── (dashboard)
+│   │   ├── api
+│   │   ├── favicon.ico
+│   │   ├── globals.css
+│   │   ├── layout.tsx
+│   │   └── page.tsx
+│   ├── components
+│   │   ├── calendar
+│   │   ├── guests
+│   │   ├── layout
+│   │   ├── payments
+│   │   ├── prices
+│   │   ├── providers
+│   │   ├── reservations
+│   │   ├── rooms
+│   │   ├── shared
+│   │   └── ui
+│   ├── lib
+│   │   ├── auth.config.ts
+│   │   ├── auth.ts
+│   │   ├── prisma.ts
+│   │   └── utils.ts
+│   └── middleware.ts
+└── tsconfig.json
+
+23 directories, 30 files

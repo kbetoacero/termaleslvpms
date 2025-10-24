@@ -1,6 +1,7 @@
 // src/app/api/reservations/[id]/checkout/route.ts
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { createCheckoutCleaningTask } from "@/lib/housekeeping-automation"
 
 export async function POST(
   request: Request,
@@ -10,6 +11,7 @@ export async function POST(
     const { id } = await params
     const body = await request.json().catch(() => ({}))
     const forceCheckout = body.force || false
+    const userId = body.userId || "system" // TODO: Obtener de sesión
 
     const reservation = await prisma.reservation.findUnique({
       where: { id },
@@ -54,19 +56,36 @@ export async function POST(
       },
     })
 
-    // Actualizar estado de las habitaciones a CLEANING
-    await Promise.all(
-      reservation.rooms.map((resRoom) =>
-        prisma.room.update({
-          where: { id: resRoom.roomId },
-          data: { status: "CLEANING" },
-        })
+    // 🧹 HOUSEKEEPING: Actualizar habitaciones y crear tareas de limpieza
+    const tasksCreated = []
+    
+    for (const resRoom of reservation.rooms) {
+      // Actualizar estado de la habitación
+      await prisma.room.update({
+        where: { id: resRoom.roomId },
+        data: { 
+          status: "CLEANING",
+          cleaningStatus: "DIRTY",
+          cleaningPriority: "HIGH",
+        },
+      })
+
+      // Crear tarea de limpieza automática
+      const task = await createCheckoutCleaningTask(
+        resRoom.roomId,
+        reservation.id,
+        userId
       )
-    )
+
+      if (task) {
+        tasksCreated.push(task)
+      }
+    }
 
     return NextResponse.json({
       message: "Check-out realizado exitosamente",
       reservation: updatedReservation,
+      housekeepingTasks: tasksCreated.length,
       warning: hasPendingAmount ? "Reserva con saldo pendiente" : null,
     })
   } catch (error) {

@@ -1,6 +1,8 @@
 // src/app/api/reservations/route.ts
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { notifyNewReservation } from "@/lib/notifications"
+import { auth } from "@/lib/auth"
 
 // Función helper para generar número de reserva
 function generateReservationNumber() {
@@ -103,6 +105,16 @@ export async function GET(request: Request) {
 // POST - Crear nueva reserva
 export async function POST(request: Request) {
   try {
+    // 🔐 Obtener usuario autenticado
+    const session = await auth()
+    
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: "No autenticado" },
+        { status: 401 }
+      )
+    }
+
     const data = await request.json()
 
     const {
@@ -114,7 +126,6 @@ export async function POST(request: Request) {
       rooms, // Array de { roomId, nightlyRate }
       specialRequests,
       notes,
-      userId,
     } = data
 
     // Validaciones
@@ -195,7 +206,7 @@ export async function POST(request: Request) {
         adults: parseInt(adults),
         children: parseInt(children) || 0,
         guestId,
-        userId: userId || "system", // TODO: Obtener del usuario autenticado
+        userId: session.user.id, // ✅ Usuario autenticado
         totalAmount,
         paidAmount: 0,
         pendingAmount: totalAmount,
@@ -223,6 +234,13 @@ export async function POST(request: Request) {
         },
       },
     })
+
+    // 🔔 NOTIFICACIÓN AUTOMÁTICA: Nueva reserva creada
+    await notifyNewReservation(
+      reservation.id,
+      `${reservation.guest.firstName} ${reservation.guest.lastName}`,
+      session.user.id
+    )
 
     // Convertir Decimals
     const reservationConverted = {

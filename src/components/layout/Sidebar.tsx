@@ -18,6 +18,7 @@ import {
   ChevronRight,
   Calendar,
   TrendingUp,
+  BrushCleaning,
 } from "lucide-react"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -43,6 +44,11 @@ const menuItems = [
     title: "Habitaciones",
     href: "/dashboard/habitaciones",
     icon: Bed,
+  },
+  {
+    title: "HouseKeeping",
+    href: "/dashboard/housekeeping",
+    icon: BrushCleaning,
   },
   {
     title: "Precios",

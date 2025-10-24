@@ -1,13 +1,24 @@
 // src/app/api/payments/route.ts
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { auth } from "@/lib/auth"
 
 // POST - Registrar nuevo pago
 export async function POST(request: Request) {
   try {
+    // 🔐 Obtener usuario autenticado
+    const session = await auth()
+    
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: "No autenticado" },
+        { status: 401 }
+      )
+    }
+
     const data = await request.json()
 
-    const { reservationId, amount, method, reference, notes, userId } = data
+    const { reservationId, amount, method, reference, notes } = data
 
     // Validaciones
     if (!reservationId || !amount || !method) {
@@ -50,7 +61,7 @@ export async function POST(request: Request) {
       )
     }
 
-    // Crear el pago
+    // ✅ Crear el pago con el userId de la sesión
     const payment = await prisma.payment.create({
       data: {
         reservationId,
@@ -59,7 +70,7 @@ export async function POST(request: Request) {
         reference: reference || null,
         notes: notes || null,
         status: "COMPLETED",
-        userId: userId || "system", // TODO: Obtener del usuario autenticado
+        userId: session.user.id, // Usuario autenticado
       },
     })
 
@@ -104,6 +115,16 @@ export async function POST(request: Request) {
 // GET - Obtener pagos
 export async function GET(request: Request) {
   try {
+    // 🔐 Verificar autenticación
+    const session = await auth()
+    
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: "No autenticado" },
+        { status: 401 }
+      )
+    }
+
     const { searchParams } = new URL(request.url)
     const reservationId = searchParams.get("reservationId")
 
@@ -125,6 +146,12 @@ export async function GET(request: Request) {
                 lastName: true,
               },
             },
+          },
+        },
+        user: {
+          select: {
+            name: true,
+            email: true,
           },
         },
       },
